@@ -2,10 +2,11 @@
 
 import tkinter as tk
 from tkinter import scrolledtext, messagebox
-from threading import Thread
+from threading import Thread, Event
 import socket
 import ssl
 import re
+import chardet
 
 class IRCClient(tk.Tk):
     def __init__(self):
@@ -16,6 +17,9 @@ class IRCClient(tk.Tk):
         self.port = 0
         self.nickname = ''
         self.channel = ''
+
+        #self.stop_event = Event()
+        #self.protocol("WM_DELETE_WINDOW", self.on_closing)
 
         self.setup_connection_frame()
         self.setup_chat_interface()
@@ -135,13 +139,17 @@ class IRCClient(tk.Tk):
 
 
     def listen_for_messages_in_thread(self):
-        thread = Thread(target=self.receive_messages)
+        thread = Thread(target=self.receive_messages, daemon=True)
         thread.start()
 
     def receive_messages(self):
+        #while not self.stop_event.is_set():
         while True:
             try:
-                messages = self.secure_irc_server.recv(2048).decode('utf-8').strip()
+                data = self.secure_irc_server.recv(2048)
+                encoding = chardet.detect(data)['encoding']
+                messages = data.decode(encoding)
+                #messages = self.secure_irc_server.recv(2048).decode('iso-8859-1').strip()
                 
                 # Check for PING request and respond with PONG
                 if messages.startswith("PING"):
@@ -152,13 +160,16 @@ class IRCClient(tk.Tk):
                 # You'll need to adjust the following regex according to your IRC server's responses and test carefully
                 user_list_pattern = re.compile(r':\S+ 353 \S+ = \S+ :(.*)') # Adjust this based on actual server response format
                 match = user_list_pattern.match(messages)
+                print(match)
                 if match:
                     users = match.group(1).split('m| ')  # Assuming space-separated list
+                    for user in users:
+                        print(user)
                     self.update_user_list(users)
                     continue  # Skip the rest of the loop to not display this in main chat window
 
                 # Debug: print messages to console
-                print(messages)
+                #print(messages)
                 
                 # Safely update the GUI from another thread
                 self.chat_display.insert(tk.END, messages + '\n')
@@ -172,9 +183,16 @@ class IRCClient(tk.Tk):
 
     def update_user_list(self, users):
         # Safely update the user list from another thread
+        self.after(0, lambda: self._update_user_list(users))
+
+    def _update_user_list(self, users):
         self.user_list_box.delete(0, tk.END)
         for user in users:
             self.user_list_box.insert(tk.END, user)
+    #def on_closing(self):
+    #    self.stop_event.set()
+    #    self.destroy()
+
 
 
 
@@ -182,5 +200,6 @@ class IRCClient(tk.Tk):
 # Running the Client
 
 if __name__ == "__main__":
+
     app = IRCClient()
     app.mainloop()
