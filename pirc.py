@@ -162,7 +162,7 @@ class IRCClient(tk.Tk):
                 match = user_list_pattern.match(messages)
                 print(match)
                 if match:
-                    users = match.group(1).split('m| ')  # Assuming space-separated list
+                    users = match.group(1).split(' ')  # Assuming space-separated list
                     for user in users:
                         print(user)
                     self.update_user_list(users)
